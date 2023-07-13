@@ -1,2 +1,2 @@
 # dino-vit-pcam
-A basic example of Self distillation with no labels (DINO) on the PCAM dataset.
+Self supervised learning through self distillation with no labels (DINO) with Vision Transformers on the PCAM dataset.
