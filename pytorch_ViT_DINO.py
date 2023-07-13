@@ -120,10 +120,8 @@ def save_results(args, optimizer):
         json.dump(hyperparameters, outfile)
 
 
-def main():
-
+def create_argparser():
     parser = argparse.ArgumentParser()
-
     # directory where all relevant folders are located
     parser.add_argument("-dir", "--project_directory", type=str)
     # number of epochs to train for
@@ -172,26 +170,78 @@ def main():
     parser.add_argument("-ma_decay", "--moving_average_decay", type=float, default=0.9)
     # moving average of teacher centers - paper showed anywhere from 0.9 to 0.999 was ok
     parser.add_argument("-cma_decay", "--center_moving_average_decay", type=float, default=0.9)
+    return parser.parse_args()
 
-    args = parser.parse_args()
 
-    device = torch.device('cuda' if torch.cuda.is_available() else print('where did you last put the GPU?'))
+def define_device():
+    return torch.device('cuda')
 
-    model = ViT(
-        image_size=args.img_shape[1],
-        patch_size=args.patch_size, # 16 x 16
-        num_classes=args.num_classes,
-        dim=args.dim,
-        depth=args.depth,
-        heads=args.heads, # 6
-        mlp_dim=args.mlp_dim
+
+def define_model(img_shape, patch_size, num_classes, dim, depth, heads, mlp_dim):
+    return ViT(
+        image_size=img_shape[1],
+        patch_size=patch_size, # 16 x 16
+        num_classes=num_classes,
+        dim=dim,
+        depth=depth,
+        heads=heads, # 6
+        mlp_dim=mlp_dim
     )
 
-    # data augmentation the same as original paper
 
-    learner = Dino(
+def define_learner(
+        model, 
+        img_shape, 
+        hidden_layer, 
+        projection_hidden_size, 
+        projection_layers, 
+        num_classes_K, 
+        student_temp,
+        teacher_temp,
+        local_upper_crop_scale,
+        global_lower_crop_scale,
+        moving_average_decay,
+        center_moving_average_decay
+        ):
+    return Dino(
         model,
-        image_size=args.img_shape[1],
+        image_size=img_shape[1],
+        hidden_layer=hidden_layer,
+        projection_hidden_size=projection_hidden_size,
+        projection_layers=projection_layers,
+        num_classes_K=num_classes_K,
+        student_temp=student_temp,
+        teacher_temp=teacher_temp,
+        local_upper_crop_scale=local_upper_crop_scale,
+        global_lower_crop_scale=global_lower_crop_scale,
+        moving_average_decay=moving_average_decay,
+        center_moving_average_decay=center_moving_average_decay,
+    )
+
+
+
+def define_optimizer(learner, learning_rate):
+    return optim.Adam(learner.parameters(), lr=learning_rate)
+
+
+def print_model_summary(learner, img_shape):
+    print(summary(learner, img_shape))
+
+
+def main():
+    args = create_argparser()
+    device = define_device()
+    model = define_model(
+        img_shape=args.img_shape,
+        patch_size=args.patch_size,
+        num_classes=args.num_ckasses,
+        dim=args.dim, 
+        depth=args.depth, 
+        mlp_dim=args.mlp_dim
+    )
+    learner = define_learner(
+        model=model,
+        img_shape=args. img_shape,
         hidden_layer=args.hidden_layer,
         projection_hidden_size=args.projection_hidden_size,
         projection_layers=args.projection_layers,
@@ -201,12 +251,11 @@ def main():
         local_upper_crop_scale=args.local_upper_crop_scale,
         global_lower_crop_scale=args.global_lower_crop_scale,
         moving_average_decay=args.moving_average_decay,
-        center_moving_average_decay=args.center_moving_average_decay,
+        center_moving_average_decay=args.center_moving_average_decay
     )
-
-    optimizer = optim.Adam(learner.parameters(), lr=args.learning_rate)
+    optimizer = define_optimizer(learner=learner, learning_rate=args.learning_rate)
     learner.to(device)
-    print(summary(learner, args.img_shape))
+    print_model_summary(learner=learner, img_shape=args.img_shape)
     train_loader = create_dataset(args=args)
     train(args=args, train_loader=train_loader, learner=learner, optimizer=optimizer, device=device)
     save_results(args=args, optimizer=optimizer)
