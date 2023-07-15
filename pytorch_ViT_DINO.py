@@ -26,20 +26,12 @@ def create_datasets(dataset_root):
     train_dataset = torchvision.datasets.PCAM(
         split="train", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
     )
-    val_dataset = torchvision.datasets.PCAM(
-        split="val", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
-    )
-    test_dataset = torchvision.datasets.PCAM(
-        split="test", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
-    )
-    return train_dataset, val_dataset, test_dataset
+    return train_dataset
 
 
-def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size):
+def create_dataloaders(train_dataset, batch_size):
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
-    test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
-    return train_dataloader, val_dataloader, test_dataloader
+    return train_dataloader
 
 
 def train(args, train_loader, learner, optimizer, device):
@@ -128,7 +120,7 @@ def create_argparser():
     # number of epochs trained past when the loss decreases to a minimum
     parser.add_argument("-patience", "--patience", type=int, default=5)
     # number of inputs before gradient is calculated
-    parser.add_argument("-batch_size", "--batch_size", type=int, default=32)
+    parser.add_argument("-batch_size", "--batch_size", type=int, default=100)
     # filename of the model, including .pth.tar
     parser.add_argument("-save", "--model_save_name", type=str, default="test_model.pth.tar")
     # name of csv with tile info
@@ -275,11 +267,9 @@ def main():
     optimizer = define_optimizer(learner=learner, learning_rate=args.learning_rate)
     learner.to(device)
     print_model_summary(model=learner)
-    train_dataset, val_dataset, test_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
-    train_dataloader, val_dataloader, test_dataloader = create_dataloaders(
+    train_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
+    train_dataloader = create_dataloaders(
         train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        test_dataset=test_dataset,
         batch_size=args.batch_size
     )
     train(args=args, train_loader=train_dataloader, learner=learner, optimizer=optimizer, device=device)
