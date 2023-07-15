@@ -17,37 +17,9 @@ import csv
 import json
 
 
-# class ImageClassificationDataset(Dataset):
-#     def __init__(self, csv_file, root_dir, transform=None):
-#         self.annotations = pd.read_csv(csv_file, header=None)
-#         self.root_dir = root_dir
-#         self.transform = transform
-
-#     def __len__(self):
-#         return len(self.annotations)
-
-#     def __getitem__(self, index):
-#         image = io.imread(Path(self.root_dir).joinpath('bin').joinpath(self.annotations.iloc[index, 0]))
-#         if self.transform:
-#             image = self.transform(image)
-
-#         return image
-
-
 def save_checkpoint(state, filepath):
     print('saving...')
     torch.save(state, filepath)
-
-
-# def create_dataset(args):
-#     # create datasets
-#     train_dataset = ImageClassificationDataset(
-#         csv_file=Path(args.project_directory).joinpath('datasets').joinpath(args.train_filename),
-#         root_dir=args.project_directory,
-#         transform=transforms.ToTensor()
-#     )
-#     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True)
-#     return train_loader
 
 
 def create_datasets(dataset_root):
