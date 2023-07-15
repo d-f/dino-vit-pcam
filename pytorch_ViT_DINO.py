@@ -16,9 +16,38 @@ import os
 import csv
 import json
 
+
+# class ImageClassificationDataset(Dataset):
+#     def __init__(self, csv_file, root_dir, transform=None):
+#         self.annotations = pd.read_csv(csv_file, header=None)
+#         self.root_dir = root_dir
+#         self.transform = transform
+
+#     def __len__(self):
+#         return len(self.annotations)
+
+#     def __getitem__(self, index):
+#         image = io.imread(Path(self.root_dir).joinpath('bin').joinpath(self.annotations.iloc[index, 0]))
+#         if self.transform:
+#             image = self.transform(image)
+
+#         return image
+
+
 def save_checkpoint(state, filepath):
     print('saving...')
     torch.save(state, filepath)
+
+
+# def create_dataset(args):
+#     # create datasets
+#     train_dataset = ImageClassificationDataset(
+#         csv_file=Path(args.project_directory).joinpath('datasets').joinpath(args.train_filename),
+#         root_dir=args.project_directory,
+#         transform=transforms.ToTensor()
+#     )
+#     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True)
+#     return train_loader
 
 
 def create_datasets(dataset_root):
@@ -218,12 +247,31 @@ def define_optimizer(learner, learning_rate):
     return optim.Adam(learner.parameters(), lr=learning_rate)
 
 
+def get_num_params(tensor_size):
+    params = 1
+    for size_idx in tensor_size:
+        params *= size_idx
+    return params
+
+
 def print_model_summary(model) -> None:
     '''
     prints the parameters and parameter size
+    should contain an equal number of trainable and non-trainable
+    parameters since the teacher network parameters are not updated
+    with gradient descent
     '''
+    trainable = 0
+    non_trainable = 0
     for param in model.named_parameters():
-        print(param[0], param[1].size())
+        if param[1].requires_grad:
+            trainable += get_num_params(param[1].size())
+        else:
+            non_trainable += get_num_params(param[1].size())
+        print(param[0], param[1].size(), param[1].requires_grad)
+
+    print("trainable parameters:", trainable)
+    print("non-trainable parameters:", non_trainable)
 
 
 def main():
@@ -254,6 +302,7 @@ def main():
     )
     optimizer = define_optimizer(learner=learner, learning_rate=args.learning_rate)
     learner.to(device)
+    print_model_summary(model=learner)
     train_dataset, val_dataset, test_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
     train_dataloader, val_dataloader, test_dataloader = create_dataloaders(
         train_dataset=train_dataset,
