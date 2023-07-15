@@ -1,3 +1,4 @@
+import torchvision
 import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
@@ -5,7 +6,7 @@ from torch.utils.data import DataLoader
 import pandas as pd
 from torch.utils.data import Dataset
 from skimage import io
-from torchsummary import summary
+# from torchsummary import summary
 from tqdm import tqdm
 import argparse
 from vit_pytorch import ViT, Dino
@@ -16,21 +17,21 @@ import csv
 import json
 
 
-class ImageClassificationDataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None):
-        self.annotations = pd.read_csv(csv_file, header=None)
-        self.root_dir = root_dir
-        self.transform = transform
+# class ImageClassificationDataset(Dataset):
+#     def __init__(self, csv_file, root_dir, transform=None):
+#         self.annotations = pd.read_csv(csv_file, header=None)
+#         self.root_dir = root_dir
+#         self.transform = transform
 
-    def __len__(self):
-        return len(self.annotations)
+#     def __len__(self):
+#         return len(self.annotations)
 
-    def __getitem__(self, index):
-        image = io.imread(Path(self.root_dir).joinpath('bin').joinpath(self.annotations.iloc[index, 0]))
-        if self.transform:
-            image = self.transform(image)
+#     def __getitem__(self, index):
+#         image = io.imread(Path(self.root_dir).joinpath('bin').joinpath(self.annotations.iloc[index, 0]))
+#         if self.transform:
+#             image = self.transform(image)
 
-        return image
+#         return image
 
 
 def save_checkpoint(state, filepath):
@@ -38,15 +39,35 @@ def save_checkpoint(state, filepath):
     torch.save(state, filepath)
 
 
-def create_dataset(args):
-    # create datasets
-    train_dataset = ImageClassificationDataset(
-        csv_file=Path(args.project_directory).joinpath('datasets').joinpath(args.train_filename),
-        root_dir=args.project_directory,
-        transform=transforms.ToTensor()
+# def create_dataset(args):
+#     # create datasets
+#     train_dataset = ImageClassificationDataset(
+#         csv_file=Path(args.project_directory).joinpath('datasets').joinpath(args.train_filename),
+#         root_dir=args.project_directory,
+#         transform=transforms.ToTensor()
+#     )
+#     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True)
+#     return train_loader
+
+
+def create_datasets(dataset_root):
+    train_dataset = torchvision.datasets.PCAM(
+        split="train", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
     )
-    train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True)
-    return train_loader
+    val_dataset = torchvision.datasets.PCAM(
+        split="val", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
+    )
+    test_dataset = torchvision.datasets.PCAM(
+        split="test", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
+    )
+    return train_dataset, val_dataset, test_dataset
+
+
+def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size):
+    train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    val_dataloader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
+    test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+    return train_dataloader, val_dataloader, test_dataloader
 
 
 def train(args, train_loader, learner, optimizer, device):
@@ -63,34 +84,36 @@ def train(args, train_loader, learner, optimizer, device):
         losses = []
         checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
         for batch_idx, data in enumerate(tqdm(train_loader)):
-            data    = data.to(device=device)
+            data    = data[0].to(device=device) # [0]: tensors [1]: labels
             loss  = learner(data)
             optimizer.zero_grad() # clear gradient information
             loss.backward() # calculate gradient
             optimizer.step()
             learner.update_moving_average()
-            losses.append(loss.item())
-        total_loss = sum(losses) / len(losses)
-        if total_loss < best_loss:
-            best_loss = total_loss
-            save_checkpoint(
-            state=checkpoint,
-            filepath=Path(args.project_directory).joinpath('results_and_models').joinpath(args.model_save_name)
-            )
-            patience_counter = 0
-        else:
-            patience_counter += 1
+            with torch.no_grad():
+                losses.append(loss.item())
+        with torch.no_grad():        
+            total_loss = sum(losses) / len(losses)
+            if total_loss < best_loss:
+                best_loss = total_loss
+                save_checkpoint(
+                state=checkpoint,
+                filepath=Path(args.project_directory).joinpath('results_and_models').joinpath(args.model_save_name)
+                )
+                patience_counter = 0
+            else:
+                patience_counter += 1
 
-        print('epoch', epoch, 'loss: ', total_loss, 'patience counter', patience_counter)
+            print('epoch', epoch, 'loss: ', total_loss, 'patience counter', patience_counter)
 
-        if os.path.exists(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv')) == False:
-            with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
-                csv_writer = csv.writer(data)
-                csv_writer.writerow((epoch, total_loss))
-        else:
-            with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
-                csv_writer = csv.writer(data)
-                csv_writer.writerow((epoch, total_loss))
+            if os.path.exists(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv')) == False:
+                with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
+                    csv_writer = csv.writer(data)
+                    csv_writer.writerow((epoch, total_loss))
+            else:
+                with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
+                    csv_writer = csv.writer(data)
+                    csv_writer.writerow((epoch, total_loss))
 
 
 def save_results(args, optimizer):
@@ -123,7 +146,7 @@ def save_results(args, optimizer):
 def create_argparser():
     parser = argparse.ArgumentParser()
     # directory where all relevant folders are located
-    parser.add_argument("-dir", "--project_directory", type=str)
+    parser.add_argument("-dir", "--project_directory", type=str, default="C:\\personal_ML\\DINOVIT_PCAM\\")
     # number of epochs to train for
     parser.add_argument("-epochs", "--num_epochs", type=int, default=300)
     # number of classes to predict between
@@ -133,15 +156,15 @@ def create_argparser():
     # number of epochs trained past when the loss decreases to a minimum
     parser.add_argument("-patience", "--patience", type=int, default=5)
     # number of inputs before gradient is calculated
-    parser.add_argument("-batch_size", "--batch_size", type=int, default=120)
+    parser.add_argument("-batch_size", "--batch_size", type=int, default=32)
     # filename of the model, including .pth.tar
-    parser.add_argument("-save", "--model_save_name", type=str)
+    parser.add_argument("-save", "--model_save_name", type=str, default="test_model.pth.tar")
     # name of csv with tile info
-    parser.add_argument("-train_filename", "--train_filename", type=str, default='benbep_final_train.csv')
+    # parser.add_argument("-train_filename", "--train_filename", type=str, default='benbep_final_train.csv')
     # channels first
-    parser.add_argument("-img_shape", "--img_shape", default=(3, 512, 512), type=tuple, nargs="+")
+    parser.add_argument("-img_shape", "--img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
-    parser.add_argument("-patch", "--patch_size", type=int, default=8)
+    parser.add_argument("-patch", "--patch_size", type=int, default=8) # 8
     # last dimension of output tensor after linear transformation
     parser.add_argument("-dim", "--dim", type=int, default=1024)  # 1024
     # number of transformer blocks
@@ -153,9 +176,9 @@ def create_argparser():
     # hidden layer name or index, from which to extract the embedding
     parser.add_argument("-hl", "--hidden_layer", type=str, default='to_latent')
     # projector network hidden dimension
-    parser.add_argument("-proj_hidden", "--projection_hidden_size", type=int, default=512)
+    parser.add_argument("-proj_hidden", "--projection_hidden_size", type=int, default=512) # 512
     # number of layers in projection network
-    parser.add_argument("-proj_layers", "--projection_layers", type=int, default=4)
+    parser.add_argument("-proj_layers", "--projection_layers", type=int, default=4) # 4
     # output logits dimensions (referenced as K in paper)
     parser.add_argument("-K_classes", "--num_classes_K", type=int, default=65336)
     # student temperature
@@ -224,8 +247,12 @@ def define_optimizer(learner, learning_rate):
     return optim.Adam(learner.parameters(), lr=learning_rate)
 
 
-def print_model_summary(learner, img_shape):
-    print(summary(learner, img_shape))
+def print_model_summary(model) -> None:
+    '''
+    prints the parameters and parameter size
+    '''
+    for param in model.named_parameters():
+        print(param[0], param[1].size())
 
 
 def main():
@@ -234,10 +261,11 @@ def main():
     model = define_model(
         img_shape=args.img_shape,
         patch_size=args.patch_size,
-        num_classes=args.num_ckasses,
+        num_classes=args.num_classes,
         dim=args.dim, 
         depth=args.depth, 
-        mlp_dim=args.mlp_dim
+        mlp_dim=args.mlp_dim,
+        heads=args.heads
     )
     learner = define_learner(
         model=model,
@@ -255,9 +283,15 @@ def main():
     )
     optimizer = define_optimizer(learner=learner, learning_rate=args.learning_rate)
     learner.to(device)
-    print_model_summary(learner=learner, img_shape=args.img_shape)
-    train_loader = create_dataset(args=args)
-    train(args=args, train_loader=train_loader, learner=learner, optimizer=optimizer, device=device)
+    # print_model_summary(learner=learner, img_shape=args.img_shape)
+    train_dataset, val_dataset, test_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
+    train_dataloader, val_dataloader, test_dataloader = create_dataloaders(
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        test_dataset=test_dataset,
+        batch_size=args.batch_size
+    )
+    train(args=args, train_loader=train_dataloader, learner=learner, optimizer=optimizer, device=device)
     save_results(args=args, optimizer=optimizer)
 
 
