@@ -84,17 +84,16 @@ def save_results(args, optimizer):
     hyperparameters = {'batch size': args.batch_size,
                        'model save name': args.model_save_name,
                        'optimizer': optimizer.defaults,
-                       'train dataset': args.train_filename,
                        'patience': args.patience,
                        'patch size': args.patch_size,
                        'linear transformation output dimension': args.dim,
                        'number of transformer blocks': args.depth,
                        'number of heads in attention layer': args.heads,
-                       'dimension of mlp layer': args.mlp,
-                       'hidden layer': args.hl,
-                       'projection network hidden dimension': args.proj_hidden,
-                       'projection network number of layers': args.proj_layers,
-                       'output logits dimension (K)': args.K_classes,
+                       'dimension of mlp layer': args.mlp_dim,
+                       'hidden layer': args.hidden_layer,
+                       'projection network hidden dimension': args.projection_hidden_size,
+                       'projection network number of layers': args.projection_layers,
+                       'output logits dimension (K)': args.num_classes_K,
                        'student temperature': args.student_temp,
                        'teacher temperature': args.teacher_temp,
                        'upper bound for local crop': args.local_upper_crop_scale,
@@ -110,51 +109,51 @@ def save_results(args, optimizer):
 def create_argparser():
     parser = argparse.ArgumentParser()
     # directory where all relevant folders are located
-    parser.add_argument("-dir", "--project_directory", type=str, default="C:\\personal_ML\\DINOVIT_PCAM\\")
+    parser.add_argument("-project_directory", type=str, default="C:\\personal_ML\\DINOVIT_PCAM\\")
     # number of epochs to train for
-    parser.add_argument("-epochs", "--num_epochs", type=int, default=300)
+    parser.add_argument("-num_epochs", type=int, default=300)
     # number of classes to predict between
-    parser.add_argument("-classes", "--num_classes", type=int, default=2)
+    parser.add_argument("-num_classes", type=int, default=2)
     # proportion to weight parameter update by
-    parser.add_argument("-lr", "--learning_rate", type=float, default=1e-4)
+    parser.add_argument("-learning_rate", type=float, default=1e-4)
     # number of epochs trained past when the loss decreases to a minimum
-    parser.add_argument("-patience", "--patience", type=int, default=5)
+    parser.add_argument("-patience", type=int, default=5)
     # number of inputs before gradient is calculated
-    parser.add_argument("-batch_size", "--batch_size", type=int, default=100)
+    parser.add_argument("-batch_size", type=int, default=100)
     # filename of the model, including .pth.tar
-    parser.add_argument("-save", "--model_save_name", type=str, default="test_model.pth.tar")
+    parser.add_argument("-model_save_name", type=str, default="test_model.pth.tar")
     # channels first
-    parser.add_argument("-img_shape", "--img_shape", default=(3, 96, 96), type=tuple, nargs="+")
+    parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
-    parser.add_argument("-patch", "--patch_size", type=int, default=16) # 16
+    parser.add_argument("-patch_size", type=int, default=16) # 16
     # last dimension of output tensor after linear transformation
-    parser.add_argument("-dim", "--dim", type=int, default=1024)  # 1024
+    parser.add_argument("-dim", type=int, default=1024)  # 1024
     # number of transformer blocks
-    parser.add_argument("-depth", "--depth", type=int, default=6)  # 6
+    parser.add_argument("-depth", type=int, default=6)  # 6
     # number of heads in multi-head attention layer
-    parser.add_argument("-heads", "--heads", type=int, default=8)  # 8
+    parser.add_argument("-heads", type=int, default=8)  # 8
     # dimension of multilayer perceptron layer
-    parser.add_argument("-mlp", "--mlp_dim", type=int, default=2048)  # 2048
+    parser.add_argument("-mlp_dim", type=int, default=2048)  # 2048
     # hidden layer name or index, from which to extract the embedding
-    parser.add_argument("-hl", "--hidden_layer", type=str, default='to_latent')
+    parser.add_argument("-hidden_layer", type=str, default='to_latent')
     # projector network hidden dimension
-    parser.add_argument("-proj_hidden", "--projection_hidden_size", type=int, default=512) # 512
+    parser.add_argument("-projection_hidden_size", type=int, default=512) # 512
     # number of layers in projection network
-    parser.add_argument("-proj_layers", "--projection_layers", type=int, default=4) # 4
+    parser.add_argument("-projection_layers", type=int, default=4) # 4
     # output logits dimensions (referenced as K in paper)
-    parser.add_argument("-K_classes", "--num_classes_K", type=int, default=65336)
+    parser.add_argument("-num_classes_K", type=int, default=65336)
     # student temperature
-    parser.add_argument("-stu_temp", "--student_temp", type=float, default=0.9)
+    parser.add_argument("-student_temp", type=float, default=0.9)
     # teacher temperature, needs to be annealed from 0.04 to 0.07 over 30 epochs
-    parser.add_argument("-teach_temp", "--teacher_temp", type=float, default=0.04)
+    parser.add_argument("-teacher_temp", type=float, default=0.04)
     # upper bound for local crop - 0.4 was recommended in the paper
-    parser.add_argument("-local_scale", "--local_upper_crop_scale", type=float, default=0.4)
+    parser.add_argument("-local_upper_crop_scale", type=float, default=0.4)
     # lower bound for global crop - 0.5 was recommended in the paper
-    parser.add_argument("-global_scale", "--global_lower_crop_scale", type=float, default=0.5)
+    parser.add_argument("-global_lower_crop_scale", type=float, default=0.5)
     # moving average of encoder - paper showed anywhere from 0.9 to 0.999 was ok
-    parser.add_argument("-ma_decay", "--moving_average_decay", type=float, default=0.9)
+    parser.add_argument("-moving_average_decay", type=float, default=0.9)
     # moving average of teacher centers - paper showed anywhere from 0.9 to 0.999 was ok
-    parser.add_argument("-cma_decay", "--center_moving_average_decay", type=float, default=0.9)
+    parser.add_argument("-center_moving_average_decay", type=float, default=0.9)
     return parser.parse_args()
 
 
