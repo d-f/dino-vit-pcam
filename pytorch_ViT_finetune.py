@@ -193,6 +193,7 @@ def create_argparser():
     # dimension of multilayer perceptron layer
     parser.add_argument("-mlp_dim", type=int, default=2048)  # 2048
     parser.add_argument("-weight_path", type=Path)
+    parser.add_argument("-param_str", choices=["just_classifier", "all"], default="just_classifier") # decides which layers to train
     return parser.parse_args()
 
 
@@ -271,6 +272,19 @@ def define_criterion():
     return torch.nn.CrossEntropyLoss()
 
 
+def freeze_params(model, param_str):
+    if param_str == "just_classifier":
+        for param in model.named_parameters():
+            if "mlp" in param[0]:
+                param[1].requires_grad = True
+            else:
+                param[1].requires_grad = False
+    elif param_str == "all":
+        for param in model.parameters():
+            param.requires_grad = True
+    return model
+
+
 def main():
     args = create_argparser()
     device = define_device()
@@ -286,6 +300,7 @@ def main():
     criterion = define_criterion()
     optimizer = define_optimizer(learner=model, learning_rate=args.learning_rate)
     model.to(device)
+    model = freeze_params(model=model, param_str=args.param_str)
     print_model_summary(model=model)
     train_dataset, val_dataset, test_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
     train_dataloader, val_dataloader, test_dataloader = create_dataloaders(
