@@ -123,12 +123,10 @@ def create_argparser():
     parser.add_argument("-batch_size", "--batch_size", type=int, default=100)
     # filename of the model, including .pth.tar
     parser.add_argument("-save", "--model_save_name", type=str, default="test_model.pth.tar")
-    # name of csv with tile info
-    # parser.add_argument("-train_filename", "--train_filename", type=str, default='benbep_final_train.csv')
     # channels first
     parser.add_argument("-img_shape", "--img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
-    parser.add_argument("-patch", "--patch_size", type=int, default=8) # 8
+    parser.add_argument("-patch", "--patch_size", type=int, default=16) # 16
     # last dimension of output tensor after linear transformation
     parser.add_argument("-dim", "--dim", type=int, default=1024)  # 1024
     # number of transformer blocks
@@ -167,11 +165,11 @@ def define_device():
 def define_model(img_shape, patch_size, num_classes, dim, depth, heads, mlp_dim):
     return ViT(
         image_size=img_shape[1],
-        patch_size=patch_size, # 16 x 16
+        patch_size=patch_size,
         num_classes=num_classes,
         dim=dim,
         depth=depth,
-        heads=heads, # 6
+        heads=heads,
         mlp_dim=mlp_dim
     )
 
