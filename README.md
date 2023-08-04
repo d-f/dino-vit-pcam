@@ -40,7 +40,7 @@ python pytorch_ViT_DINO.py -project_directory C:\ml_projects\dino-vit\ -model_sa
 ```
 python pytorch_ViT_finetune.py -project_directory C:\ml_projects\dino-vit -model_save_name "dino_vit_model_1.pth.tar" -param_str "just_classifer"
 ```
-  - Calculate model performance 
+  - Calculate model performance (may need to add R to PATH)
 ```
 Rscript C:\ml_code\dino_vit_pcam\calc_model_performance.R
 C:\ml_projects\dino_vit\results\dino_vit_model_1_test_results.json
