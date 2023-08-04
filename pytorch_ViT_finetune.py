@@ -16,32 +16,8 @@ import os
 import csv
 import json
 from sklearn.preprocessing import OneHotEncoder
-
-
-def save_checkpoint(state, filepath):
-    print('saving...')
-    torch.save(state, filepath)
-
-
-def create_datasets(dataset_root):
-    train_dataset = torchvision.datasets.PCAM(
-        split="train", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
-    )
-    val_dataset = torchvision.datasets.PCAM(
-        split="val", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
-    )
-    test_dataset = torchvision.datasets.PCAM(
-        split="test", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
-    )
-    return train_dataset, val_dataset, test_dataset
-
-
-def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size):
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
-    test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
-
-    return train_dataloader, val_dataloader, test_dataloader
+from utils.data_utils import *
+from utils.model_utils import *
 
 
 def train(args, train_loader, model, optimizer, device, val_loader, criterion):
@@ -92,18 +68,6 @@ def train(args, train_loader, model, optimizer, device, val_loader, criterion):
                     csv_writer.writerow((epoch, total_loss))
 
 
-def load_model(weight_path: Path, model):
-    '''
-    loads all parameters of a model
-    :param weight_path: path to the .pth.tar file with parameters to update
-    :param model: model object
-    :return: the model with updated parameters
-    '''
-    checkpoint = torch.load(weight_path, map_location='cpu')
-    model.load_state_dict(checkpoint['state_dict'])
-    return model
-
-
 def test_best_model(
     weight_path: str, 
     num_classes: int, 
@@ -147,23 +111,6 @@ def test_best_model(
         return label_list, prediction_list, label_prob_list, pred_prob_list
 
 
-def save_results(args, optimizer):
-    hyperparameters = {'batch size': args.batch_size,
-                       'model save name': args.model_save_name,
-                       'optimizer': optimizer.defaults,
-                       'patience': args.patience,
-                       'patch size': args.patch_size,
-                       'linear transformation output dimension': args.dim,
-                       'number of transformer blocks': args.depth,
-                       'number of heads in attention layer': args.heads,
-                       'dimension of mlp layer': args.mlp_dim,
-                       }
-
-    with open(Path(args.project_directory).joinpath('results_and_models').joinpath(
-            f'{args.model_save_name[:-8]}_hyperparameters.json'), mode='w') as outfile:
-        json.dump(hyperparameters, outfile)
-
-
 def create_argparser():
     parser = argparse.ArgumentParser()
     # directory where all relevant folders are located
@@ -197,53 +144,6 @@ def create_argparser():
     return parser.parse_args()
 
 
-def define_device():
-    return torch.device('cuda')
-
-
-def define_model(img_shape, patch_size, num_classes, dim, depth, heads, mlp_dim):
-    return ViT(
-        image_size=img_shape[1],
-        patch_size=patch_size, 
-        num_classes=num_classes,
-        dim=dim,
-        depth=depth,
-        heads=heads,
-        mlp_dim=mlp_dim
-    )
-
-
-def define_optimizer(learner, learning_rate):
-    return optim.Adam(learner.parameters(), lr=learning_rate)
-
-
-def get_num_params(tensor_size):
-    params = 1
-    for size_idx in tensor_size:
-        params *= size_idx
-    return params
-
-
-def print_model_summary(model) -> None:
-    '''
-    prints the parameters and parameter size
-    should contain an equal number of trainable and non-trainable
-    parameters since the teacher network parameters are not updated
-    with gradient descent
-    '''
-    trainable = 0
-    non_trainable = 0
-    for param in model.named_parameters():
-        if param[1].requires_grad:
-            trainable += get_num_params(param[1].size())
-        else:
-            non_trainable += get_num_params(param[1].size())
-        print(param[0], param[1].size(), param[1].requires_grad)
-
-    print("trainable parameters:", trainable)
-    print("non-trainable parameters:", non_trainable)
-
-
 def validate_model(
     model, 
     val_loader, 
@@ -266,23 +166,6 @@ def validate_model(
             val_loss = criterion(val_scores, val_targets)
             val_losses.append(val_loss.item())
         return val_losses, num_correct_val
-    
-
-def define_criterion():
-    return torch.nn.CrossEntropyLoss()
-
-
-def freeze_params(model, param_str):
-    if param_str == "just_classifier":
-        for param in model.named_parameters():
-            if "mlp" in param[0]:
-                param[1].requires_grad = True
-            else:
-                param[1].requires_grad = False
-    elif param_str == "all":
-        for param in model.parameters():
-            param.requires_grad = True
-    return model
 
 
 def main():
@@ -302,15 +185,15 @@ def main():
     model.to(device)
     model = freeze_params(model=model, param_str=args.param_str)
     print_model_summary(model=model)
-    train_dataset, val_dataset, test_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
-    train_dataloader, val_dataloader, test_dataloader = create_dataloaders(
+    train_dataset, val_dataset, test_dataset = create_ft_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
+    train_dataloader, val_dataloader, test_dataloader = create_ft_dataloaders(
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         test_dataset=test_dataset,
         batch_size=args.batch_size
     )
     train(args=args, train_loader=train_dataloader, model=model, optimizer=optimizer, device=device, val_loader=val_dataloader, criterion=criterion)
-    save_results(args=args, optimizer=optimizer)
+    save_ft_results(args=args, optimizer=optimizer)
     test_best_model(
         weight_path=args.weight_path,
         num_classes=args.num_classes, 
