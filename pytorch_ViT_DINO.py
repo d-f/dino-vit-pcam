@@ -2,22 +2,33 @@ import torch
 from skimage import io
 from tqdm import tqdm
 import argparse
-from pathlib import Path
 import os
 import csv
+from vit_pytorch import Dino
+import torch.optim as optim
+from pathlib import Path
+from torch.utils.data import DataLoader
 from utils.data_utils import *
 from utils.model_utils import *
 
 
-def train(args, train_loader, learner, optimizer, device, project_directory, model_save_name):
+def train(
+        train_loader: DataLoader, 
+        learner: Dino, 
+        optimizer: optim, 
+        device: torch.device, 
+        project_directory: Path, 
+        model_save_name: str, 
+        num_epochs: int
+        ) -> None:
     # if loss log file exists, remove to not include previous training runs
-    if os.path.exists(Path(args.project_directory).joinpath('results_and_models').joinpath(
-            f'{args.model_save_name[:-8]}_dino_loss_values.csv')):
-        os.remove(Path(args.project_directory).joinpath('results_and_models').joinpath(
-            f'{args.model_save_name[:-8]}_dino_loss_values.csv'))
-    for epoch in range(args.num_epochs):
+    if os.path.exists(Path(project_directory).joinpath('results_and_models').joinpath(
+            f'{model_save_name[:-8]}_dino_loss_values.csv')):
+        os.remove(Path(project_directory).joinpath('results_and_models').joinpath(
+            f'{model_save_name[:-8]}_dino_loss_values.csv'))
+    for epoch in range(num_epochs):
         losses = []
-        for batch_idx, data in enumerate(tqdm(train_loader)):
+        for _, data in enumerate(tqdm(train_loader)):
             data    = data[0].to(device=device) # [0]: tensors [1]: labels
             loss  = learner(data)
             optimizer.zero_grad() # clear gradient information
@@ -31,24 +42,24 @@ def train(args, train_loader, learner, optimizer, device, project_directory, mod
 
             print('epoch', epoch, 'loss: ', total_loss)
 
-            if os.path.exists(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv')) == False:
-                with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
+            if os.path.exists(Path(project_directory).joinpath('results_and_models').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')) == False:
+                with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
                     csv_writer = csv.writer(data)
                     csv_writer.writerow((epoch, total_loss))
             else:
-                with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
+                with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
                     csv_writer = csv.writer(data)
                     csv_writer.writerow((epoch, total_loss))
     checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
     save_checkpoint(state=checkpoint, filepath=project_directory.joinpath("models").joinpath(model_save_name))
 
 
-def create_argparser():
+def create_argparser() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     # directory where all relevant folders are located
-    parser.add_argument("-project_directory", type=str, default="C:\\personal_ML\\DINOVIT_PCAM\\")
+    parser.add_argument("-project_directory", type=Path)
     # number of epochs to train for
-    parser.add_argument("-num_epochs", type=int, default=100) # 300
+    parser.add_argument("-num_epochs", type=int, default=300)
     # number of classes to predict between
     parser.add_argument("-num_classes", type=int, default=2)
     # proportion to weight parameter update by
@@ -56,27 +67,27 @@ def create_argparser():
     # number of epochs trained past when the loss decreases to a minimum
     parser.add_argument("-patience", type=int, default=5)
     # number of inputs before gradient is calculated
-    parser.add_argument("-batch_size", type=int, default=120) # 120
+    parser.add_argument("-batch_size", type=int, default=120) 
     # filename of the model, including .pth.tar
-    parser.add_argument("-model_save_name", type=str, default="test_model.pth.tar")
+    parser.add_argument("-model_save_name", type=str)
     # channels first
     parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
-    parser.add_argument("-patch_size", type=int, default=32) # 16
+    parser.add_argument("-patch_size", type=int, default=16)
     # last dimension of output tensor after linear transformation
-    parser.add_argument("-dim", type=int, default=1024)  # 1024
+    parser.add_argument("-dim", type=int, default=1024)
     # number of transformer blocks
-    parser.add_argument("-depth", type=int, default=6)  # 6
+    parser.add_argument("-depth", type=int, default=6)
     # number of heads in multi-head attention layer
-    parser.add_argument("-heads", type=int, default=8)  # 8
+    parser.add_argument("-heads", type=int, default=8)
     # dimension of multilayer perceptron layer
-    parser.add_argument("-mlp_dim", type=int, default=2048)  # 2048
+    parser.add_argument("-mlp_dim", type=int, default=2048)
     # hidden layer name or index, from which to extract the embedding
     parser.add_argument("-hidden_layer", type=str, default='to_latent')
     # projector network hidden dimension
-    parser.add_argument("-projection_hidden_size", type=int, default=512) # 512
+    parser.add_argument("-projection_hidden_size", type=int, default=512)
     # number of layers in projection network
-    parser.add_argument("-projection_layers", type=int, default=4) # 4
+    parser.add_argument("-projection_layers", type=int, default=4)
     # output logits dimensions (referenced as K in paper)
     parser.add_argument("-num_classes_K", type=int, default=65336)
     # student temperature
@@ -129,15 +140,36 @@ def main():
         batch_size=args.batch_size
     )
     train(
-        args=args, 
         train_loader=train_dataloader, 
         learner=learner, 
         optimizer=optimizer, 
         device=device, 
         project_directory=args.project_directory,
-        model_save_name=args.model_save_name
+        model_save_name=args.model_save_name,
+        num_epochs=args.num_epochs
         )
-    save_dino_results(args=args, optimizer=optimizer)
+    save_dino_results(
+        optimizer=optimizer,
+        batch_size=args.batch_size,
+        model_save_name=args.model_save_name, 
+        patience=args.patience,
+        patch_size=args.patch_size,
+        dim=args.dim,
+        depth=args.depth,
+        heads=args.heads,
+        mlp_dim=args.mlp_dim,
+        hidden_layer=args.hidden_layer,
+        projection_hidden_size=args.projection_hidden_size,
+        projection_layers=args.projection_layers,
+        num_classes_K=args.num_classes_K,
+        student_temp=args.student_temp,
+        teacher_temp=args.teacher_temp,
+        local_upper_crop_scale=args.local_upper_crop_scale,
+        global_lower_crop_scale=args.global_lower_crop_scale,
+        moving_average_decay=args.moving_average_decay,
+        center_moving_average_decay=args.center_moving_average_decay,
+        project_directory=args.project_directory
+        )
 
 
 if __name__ == '__main__':
