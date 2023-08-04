@@ -8,20 +8,20 @@ from typing import Tuple, List
 
 def create_dino_datasets(dataset_root: str) -> Dataset:
     train_dataset = torchvision.datasets.PCAM(
-        split="train", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
+        split="train", root=dataset_root, download=True, transform=torchvision.transforms.ToTensor()
     )
     return train_dataset
 
 
 def create_ft_datasets(dataset_root: str) -> Tuple:
     train_dataset = torchvision.datasets.PCAM(
-        split="train", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
+        split="train", root=dataset_root, download=True, transform=torchvision.transforms.ToTensor()
     )
     val_dataset = torchvision.datasets.PCAM(
-        split="val", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
+        split="val", root=dataset_root, download=True, transform=torchvision.transforms.ToTensor()
     )
     test_dataset = torchvision.datasets.PCAM(
-        split="test", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
+        split="test", root=dataset_root, download=True, transform=torchvision.transforms.ToTensor()
     )
     return train_dataset, val_dataset, test_dataset
 
