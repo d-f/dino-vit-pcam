@@ -158,7 +158,6 @@ def create_argparser():
     parser.add_argument("-heads", type=int, default=8)
     # dimension of multilayer perceptron layer
     parser.add_argument("-mlp_dim", type=int, default=2048)
-    parser.add_argument("-weight_path", type=Path)
     parser.add_argument("-param_str", choices=["just_classifier", "all"], default="just_classifier") # decides which layers to train
     return parser.parse_args()
 
