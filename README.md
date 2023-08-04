@@ -42,7 +42,7 @@ python pytorch_ViT_finetune.py -project_directory C:\ml_projects\dino-vit -model
 ```
   - Calculate model performance (may need to add R to PATH)
 ```
-Rscript C:\ml_code\dino_vit_pcam\calc_model_performance.R
+Rscript C:\ml_code\dino_vit_pcam\utils\calc_model_performance.R
 C:\ml_projects\dino_vit\results\dino_vit_model_1_test_results.json
 C:\ml_projects\dino_vit\results\dino_vit_model_1_performance.json
 ```
