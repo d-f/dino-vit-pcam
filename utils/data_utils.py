@@ -127,10 +127,10 @@ def save_test_results(
     result_fp: Path
     ) -> None:
     result_dict = {
-        "label list": label_list,
-        "prediction list": prediction_list,
-        "label probability list": label_prob_list,
-        "prediction probability list": pred_prob_list
+        "labels": label_list,
+        "predictions": prediction_list,
+        "label probabilities": label_prob_list,
+        "predictive probabilities": pred_prob_list
     }
     with open(result_fp, mode="w") as opened_json:
         json.dump(result_dict, opened_json)
