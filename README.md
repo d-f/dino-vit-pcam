@@ -37,6 +37,7 @@ python pytorch_ViT_DINO.py -project_directory C:\ml_projects\dino-vit\ -model_sa
 ```
   - Fine-tune classifier
       - See create_argparser() on line 133 in pytorch_ViT_finetune.py for more details on adjustable hyperparameters
+      - param_str set to "just_classifier" only trains a fully connected layer at the end of the network, "all" sets requires_grad to True for all parameters
 ```
 python pytorch_ViT_finetune.py -project_directory C:\ml_projects\dino-vit -model_save_name "dino_vit_model_1.pth.tar" -param_str "just_classifer"
 ```
