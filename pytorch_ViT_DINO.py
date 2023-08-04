@@ -1,52 +1,22 @@
-import torchvision
 import torch
-import torch.optim as optim
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-import pandas as pd
-from torch.utils.data import Dataset
 from skimage import io
-# from torchsummary import summary
 from tqdm import tqdm
 import argparse
-from vit_pytorch import ViT, Dino
 from pathlib import Path
-import numpy as np
 import os
 import csv
-import json
+from utils.data_utils import *
+from utils.model_utils import *
 
 
-def save_checkpoint(state, filepath):
-    print('saving...')
-    torch.save(state, filepath)
-
-
-def create_datasets(dataset_root):
-    train_dataset = torchvision.datasets.PCAM(
-        split="train", root=dataset_root, download=False, transform=torchvision.transforms.ToTensor()
-    )
-    return train_dataset
-
-
-def create_dataloaders(train_dataset, batch_size):
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-    return train_dataloader
-
-
-def train(args, train_loader, learner, optimizer, device):
-    best_loss = np.inf
-    patience_counter = 0
+def train(args, train_loader, learner, optimizer, device, project_directory, model_save_name):
     # if loss log file exists, remove to not include previous training runs
     if os.path.exists(Path(args.project_directory).joinpath('results_and_models').joinpath(
             f'{args.model_save_name[:-8]}_dino_loss_values.csv')):
         os.remove(Path(args.project_directory).joinpath('results_and_models').joinpath(
             f'{args.model_save_name[:-8]}_dino_loss_values.csv'))
     for epoch in range(args.num_epochs):
-        if patience_counter == args.patience:
-            break
         losses = []
-        checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
         for batch_idx, data in enumerate(tqdm(train_loader)):
             data    = data[0].to(device=device) # [0]: tensors [1]: labels
             loss  = learner(data)
@@ -58,17 +28,8 @@ def train(args, train_loader, learner, optimizer, device):
                 losses.append(loss.item())
         with torch.no_grad():        
             total_loss = sum(losses) / len(losses)
-            if total_loss < best_loss:
-                best_loss = total_loss
-                save_checkpoint(
-                state=checkpoint,
-                filepath=Path(args.project_directory).joinpath('results_and_models').joinpath(args.model_save_name)
-                )
-                patience_counter = 0
-            else:
-                patience_counter += 1
 
-            print('epoch', epoch, 'loss: ', total_loss, 'patience counter', patience_counter)
+            print('epoch', epoch, 'loss: ', total_loss)
 
             if os.path.exists(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv')) == False:
                 with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
@@ -78,32 +39,8 @@ def train(args, train_loader, learner, optimizer, device):
                 with open(Path(args.project_directory).joinpath('results_and_models').joinpath(f'{args.model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
                     csv_writer = csv.writer(data)
                     csv_writer.writerow((epoch, total_loss))
-
-
-def save_results(args, optimizer):
-    hyperparameters = {'batch size': args.batch_size,
-                       'model save name': args.model_save_name,
-                       'optimizer': optimizer.defaults,
-                       'patience': args.patience,
-                       'patch size': args.patch_size,
-                       'linear transformation output dimension': args.dim,
-                       'number of transformer blocks': args.depth,
-                       'number of heads in attention layer': args.heads,
-                       'dimension of mlp layer': args.mlp_dim,
-                       'hidden layer': args.hidden_layer,
-                       'projection network hidden dimension': args.projection_hidden_size,
-                       'projection network number of layers': args.projection_layers,
-                       'output logits dimension (K)': args.num_classes_K,
-                       'student temperature': args.student_temp,
-                       'teacher temperature': args.teacher_temp,
-                       'upper bound for local crop': args.local_upper_crop_scale,
-                       'lower bound for global crop': args.global_lower_crop_scale,
-                       'moving average decay': args.moving_average_decay,
-                       'center moving average decay': args.center_moving_average_decay}
-
-    with open(Path(args.project_directory).joinpath('results_and_models').joinpath(
-            f'{args.model_save_name[:-8]}_hyperparameters.json'), mode='w') as outfile:
-        json.dump(hyperparameters, outfile)
+    checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
+    save_checkpoint(state=checkpoint, filepath=project_directory.joinpath("models").joinpath(model_save_name))
 
 
 def create_argparser():
@@ -111,21 +48,21 @@ def create_argparser():
     # directory where all relevant folders are located
     parser.add_argument("-project_directory", type=str, default="C:\\personal_ML\\DINOVIT_PCAM\\")
     # number of epochs to train for
-    parser.add_argument("-num_epochs", type=int, default=300)
+    parser.add_argument("-num_epochs", type=int, default=100) # 300
     # number of classes to predict between
     parser.add_argument("-num_classes", type=int, default=2)
     # proportion to weight parameter update by
-    parser.add_argument("-learning_rate", type=float, default=1e-4)
+    parser.add_argument("-learning_rate", type=float, default=3e-4)
     # number of epochs trained past when the loss decreases to a minimum
     parser.add_argument("-patience", type=int, default=5)
     # number of inputs before gradient is calculated
-    parser.add_argument("-batch_size", type=int, default=100)
+    parser.add_argument("-batch_size", type=int, default=120) # 120
     # filename of the model, including .pth.tar
     parser.add_argument("-model_save_name", type=str, default="test_model.pth.tar")
     # channels first
     parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
-    parser.add_argument("-patch_size", type=int, default=16) # 16
+    parser.add_argument("-patch_size", type=int, default=32) # 16
     # last dimension of output tensor after linear transformation
     parser.add_argument("-dim", type=int, default=1024)  # 1024
     # number of transformer blocks
@@ -157,84 +94,6 @@ def create_argparser():
     return parser.parse_args()
 
 
-def define_device():
-    return torch.device('cuda')
-
-
-def define_model(img_shape, patch_size, num_classes, dim, depth, heads, mlp_dim):
-    return ViT(
-        image_size=img_shape[1],
-        patch_size=patch_size,
-        num_classes=num_classes,
-        dim=dim,
-        depth=depth,
-        heads=heads,
-        mlp_dim=mlp_dim
-    )
-
-
-def define_learner(
-        model, 
-        img_shape, 
-        hidden_layer, 
-        projection_hidden_size, 
-        projection_layers, 
-        num_classes_K, 
-        student_temp,
-        teacher_temp,
-        local_upper_crop_scale,
-        global_lower_crop_scale,
-        moving_average_decay,
-        center_moving_average_decay
-        ):
-    return Dino(
-        model,
-        image_size=img_shape[1],
-        hidden_layer=hidden_layer,
-        projection_hidden_size=projection_hidden_size,
-        projection_layers=projection_layers,
-        num_classes_K=num_classes_K,
-        student_temp=student_temp,
-        teacher_temp=teacher_temp,
-        local_upper_crop_scale=local_upper_crop_scale,
-        global_lower_crop_scale=global_lower_crop_scale,
-        moving_average_decay=moving_average_decay,
-        center_moving_average_decay=center_moving_average_decay,
-    )
-
-
-
-def define_optimizer(learner, learning_rate):
-    return optim.Adam(learner.parameters(), lr=learning_rate)
-
-
-def get_num_params(tensor_size):
-    params = 1
-    for size_idx in tensor_size:
-        params *= size_idx
-    return params
-
-
-def print_model_summary(model) -> None:
-    '''
-    prints the parameters and parameter size
-    should contain an equal number of trainable and non-trainable
-    parameters since the teacher network parameters are not updated
-    with gradient descent
-    '''
-    trainable = 0
-    non_trainable = 0
-    for param in model.named_parameters():
-        if param[1].requires_grad:
-            trainable += get_num_params(param[1].size())
-        else:
-            non_trainable += get_num_params(param[1].size())
-        print(param[0], param[1].size(), param[1].requires_grad)
-
-    print("trainable parameters:", trainable)
-    print("non-trainable parameters:", non_trainable)
-
-
 def main():
     args = create_argparser()
     device = define_device()
@@ -264,13 +123,21 @@ def main():
     optimizer = define_optimizer(learner=learner, learning_rate=args.learning_rate)
     learner.to(device)
     print_model_summary(model=learner)
-    train_dataset = create_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
-    train_dataloader = create_dataloaders(
+    train_dataset = create_dino_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
+    train_dataloader = create_dino_dataloaders(
         train_dataset=train_dataset,
         batch_size=args.batch_size
     )
-    train(args=args, train_loader=train_dataloader, learner=learner, optimizer=optimizer, device=device)
-    save_results(args=args, optimizer=optimizer)
+    train(
+        args=args, 
+        train_loader=train_dataloader, 
+        learner=learner, 
+        optimizer=optimizer, 
+        device=device, 
+        project_directory=args.project_directory,
+        model_save_name=args.model_save_name
+        )
+    save_dino_results(args=args, optimizer=optimizer)
 
 
 if __name__ == '__main__':
