@@ -103,7 +103,7 @@ def load_model(weight_path: Path, model: ViT) -> ViT:
     :return: the model with updated parameters
     '''
     checkpoint = torch.load(weight_path)
-    model.load_state_dict(checkpoint['state_dict'], strict=False)
+    model.load_state_dict(checkpoint['state_dict'])
     return model
 
 
