@@ -40,11 +40,7 @@ def train(
         val_losses = []
         checkpoint = {'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()}
         model.train()
-        i=0
         for data, labels in tqdm(train_loader):
-            if i == 3:
-                break
-            i += 1
             data    = data.to(device=device) 
             labels = labels.to(device=device)
             scores  = model(data)
@@ -111,11 +107,7 @@ def test_best_model(
         onehot_encoder = onehot_encoder.fit(
             np.array([x for x in range(num_classes)]).reshape(-1, 1)
         )
-        i=0
         for imgs, labels in tqdm(loader, desc="Test"):
-            if i == 3:
-                break
-            i += 1
             imgs = imgs.to(device=device)
             labels = labels.to(device=device)
             scores = model(imgs)
@@ -174,11 +166,7 @@ def validate_model(
     """
     with torch.no_grad():
         model.eval()  # turn dropout and batch norm off
-        i=0
         for val_data, val_targets in tqdm(val_loader, desc='Validation'):
-            if i == 3:
-                break
-            i += 1
             val_data = val_data.to(device=device)
             val_targets = val_targets.to(device=device)
             val_scores = model(val_data)
