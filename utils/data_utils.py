@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader, Dataset
 import json
 from pathlib import Path
 from typing import Tuple, List
+import numpy as np
 
 
 def create_dino_datasets(dataset_root: str) -> Dataset:
@@ -129,8 +130,8 @@ def save_test_results(
     result_dict = {
         "labels": label_list,
         "predictions": prediction_list,
-        "label probabilities": label_prob_list,
-        "predictive probabilities": pred_prob_list
+        "label probabilities": [(int(x[0]), int(x[1])) for x in label_prob_list],
+        "predictive probabilities": [(np.float64(x[0]), np.float64(x[1])) for x in pred_prob_list]
     }
     with open(result_fp, mode="w") as opened_json:
         json.dump(result_dict, opened_json)
