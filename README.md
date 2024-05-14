@@ -52,9 +52,9 @@ For demonstration / debugging purposes a model was trained with DINO with a batc
 
 A MLP classifier was added to this model and fine tuned for 4 epochs with a batch size of 16 and a learning rate of 1e-3, resulting in the following performance on the PCAM test dataset:
 
-| Accuracy | Sensitivity | Specificity |
-| -------- | ----------- | ----------- |
-| 73.21%   | 75.80%      | 70.63%      |
+| Accuracy | Sensitivity (Recall) | Specificity |
+| -------- | -------------------- | ----------- |
+| 73.21%   | 75.80%               | 70.63%      |
 
 The loss values throughout training indicate this model would benefit from more training during both phases of training, but these two short training phases were just used as a sanity check.
 
