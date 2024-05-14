@@ -17,6 +17,8 @@ def create_argparser():
     parser = argparse.ArgumentParser()
     # directory where all relevant folders are located
     parser.add_argument("-project_directory", type=Path)
+    # directory where the PCAM dataset is located
+    parser.add_argument("-data_root", type=Path)
     # number of epochs to train for
     parser.add_argument("-num_epochs", type=int, default=4)
     # number of classes to predict between
@@ -28,19 +30,19 @@ def create_argparser():
     # number of inputs before gradient is calculated
     parser.add_argument("-batch_size", type=int, default=16)
     # filename of the model, including .pth.tar
-    parser.add_argument("-model_save_name", type=str, default="model_1_finetune.pth.tar")
+    parser.add_argument("-model_save_name", type=str)
     # channels first
     parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
     parser.add_argument("-patch_size", type=int, default=8)
     # last dimension of output tensor after linear transformation
-    parser.add_argument("-dim", type=int, default=1024)
+    parser.add_argument("-dim", type=int, default=128)
     # number of transformer blocks
     parser.add_argument("-depth", type=int, default=6)
     # number of heads in multi-head attention layer
     parser.add_argument("-heads", type=int, default=8)
     # dimension of multilayer perceptron layer
-    parser.add_argument("-mlp_dim", type=int, default=2048)
+    parser.add_argument("-mlp_dim", type=int, default=128)
     parser.add_argument("-param_str", choices=["just_classifier", "all"], default="just_classifier") # decides which layers to train
     return parser.parse_args()
 
@@ -60,10 +62,9 @@ def train(
     best_loss = np.inf
     patience_counter = 0
     # if loss log file exists, remove to not include previous training runs
-    if os.path.exists(Path(project_directory).joinpath('results').joinpath(
-            f'{model_save_name[:-8]}_finetune_loss_values.csv')):
-        os.remove(Path(project_directory).joinpath('results').joinpath(
-            f'{model_save_name[:-8]}_finetune_loss_values.csv'))
+    res_file_path = Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_finetune_loss_values.csv')
+    if os.path.exists(res_file_path):
+        os.remove(res_file_path)
         
 
     for epoch in range(num_epochs):
@@ -73,9 +74,9 @@ def train(
         checkpoint = {'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()}
         model.train()
         for data, labels in tqdm(train_loader):
-            data = data.to(device=device) 
+            data    = data.to(device=device) 
             labels = labels.to(device=device)
-            scores = model(data)
+            scores  = model(data)
             optimizer.zero_grad() # clear gradient information
             loss = criterion(scores, labels)
             loss.backward() # calculate gradient
@@ -102,14 +103,9 @@ def train(
 
             print('epoch', epoch, 'loss: ', total_loss, 'patience counter', patience_counter, "val accuracy", val_accuracy, 'val loss', val_loss)
 
-            if os.path.exists(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')) == False:
-                with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
-                    csv_writer = csv.writer(data)
-                    csv_writer.writerow((epoch, total_loss))
-            else:
-                with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
-                    csv_writer = csv.writer(data)
-                    csv_writer.writerow((epoch, total_loss))
+            with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
+                csv_writer = csv.writer(data)
+                csv_writer.writerow((epoch, total_loss))
 
 
 def validate_model(
@@ -192,7 +188,7 @@ def main():
     model.to(device)
     model = freeze_params(model=model, param_str=args.param_str)
     print_model_summary(model=model)
-    train_dataset, val_dataset, test_dataset = create_ft_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
+    train_dataset, val_dataset, test_dataset = create_ft_datasets(dataset_root=args.data_root)
     train_dataloader, val_dataloader, test_dataloader = create_ft_dataloaders(
         train_dataset=train_dataset,
         val_dataset=val_dataset,
