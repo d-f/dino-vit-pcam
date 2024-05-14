@@ -8,10 +8,41 @@ from pathlib import Path
 import numpy as np
 import os
 import csv
-from sklearn.preprocessing import OneHotEncoder
 from typing import List
 from utils.data_utils import *
 from utils.model_utils import *
+
+
+def create_argparser():
+    parser = argparse.ArgumentParser()
+    # directory where all relevant folders are located
+    parser.add_argument("-project_directory", type=Path)
+    # number of epochs to train for
+    parser.add_argument("-num_epochs", type=int, default=4)
+    # number of classes to predict between
+    parser.add_argument("-num_classes", type=int, default=2)
+    # proportion to weight parameter update by
+    parser.add_argument("-learning_rate", type=float, default=1e-3)
+    # number of epochs trained past when the loss decreases to a minimum
+    parser.add_argument("-patience", type=int, default=5)
+    # number of inputs before gradient is calculated
+    parser.add_argument("-batch_size", type=int, default=16)
+    # filename of the model, including .pth.tar
+    parser.add_argument("-model_save_name", type=str, default="model_1_finetune.pth.tar")
+    # channels first
+    parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
+    # size of image patch, 8, 16 and 32 are good values
+    parser.add_argument("-patch_size", type=int, default=8)
+    # last dimension of output tensor after linear transformation
+    parser.add_argument("-dim", type=int, default=1024)
+    # number of transformer blocks
+    parser.add_argument("-depth", type=int, default=6)
+    # number of heads in multi-head attention layer
+    parser.add_argument("-heads", type=int, default=8)
+    # dimension of multilayer perceptron layer
+    parser.add_argument("-mlp_dim", type=int, default=2048)
+    parser.add_argument("-param_str", choices=["just_classifier", "all"], default="just_classifier") # decides which layers to train
+    return parser.parse_args()
 
 
 def train(
@@ -33,33 +64,33 @@ def train(
             f'{model_save_name[:-8]}_finetune_loss_values.csv')):
         os.remove(Path(project_directory).joinpath('results').joinpath(
             f'{model_save_name[:-8]}_finetune_loss_values.csv'))
+        
+
     for epoch in range(num_epochs):
         if patience_counter == patience:
             break
-        losses = []
-        val_losses = []
+        batch_losses = []
         checkpoint = {'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()}
         model.train()
         for data, labels in tqdm(train_loader):
-            data    = data.to(device=device) 
+            data = data.to(device=device) 
             labels = labels.to(device=device)
-            scores  = model(data)
+            scores = model(data)
             optimizer.zero_grad() # clear gradient information
             loss = criterion(scores, labels)
             loss.backward() # calculate gradient
             optimizer.step()
             with torch.no_grad():
-                losses.append(loss.item())
+                batch_losses.append(loss.item())
         with torch.no_grad(): 
-            val_losses = validate_model(
+            val_loss, val_accuracy = validate_model(
                 model=model,
                 val_loader=val_loader, 
                 device=device,
                 criterion=criterion,
-                val_losses=val_losses, 
             )       
-            total_loss = sum(losses) / len(losses)
-            if total_loss < best_loss:
+            total_loss = sum(batch_losses) / len(batch_losses)
+            if val_loss < best_loss:
                 best_loss = total_loss
                 save_checkpoint(
                 state=checkpoint,
@@ -69,7 +100,7 @@ def train(
             else:
                 patience_counter += 1
 
-            print('epoch', epoch, 'loss: ', total_loss, 'patience counter', patience_counter)
+            print('epoch', epoch, 'loss: ', total_loss, 'patience counter', patience_counter, "val accuracy", val_accuracy, 'val loss', val_loss)
 
             if os.path.exists(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')) == False:
                 with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
@@ -79,6 +110,34 @@ def train(
                 with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
                     csv_writer = csv.writer(data)
                     csv_writer.writerow((epoch, total_loss))
+
+
+def validate_model(
+    model: ViT, 
+    val_loader: DataLoader, 
+    device: torch.device, 
+    criterion: torch.nn.CrossEntropyLoss, 
+    ) -> List:
+    """
+    evaluates model performance on the validation set
+    """
+    with torch.no_grad():
+        val_losses = []
+        val_accuracies = []
+        model.eval()  # turn dropout and batch norm off
+        for val_data, val_targets in tqdm(val_loader, desc='Validation'):
+            val_data = val_data.to(device=device)
+            val_targets = val_targets.to(device=device)
+            val_scores = model(val_data)
+            val_loss = criterion(val_scores, val_targets)
+            val_losses.append(val_loss.item())
+            correct = torch.sum(val_targets == val_scores.argmax(dim=1)).item()
+            acc = correct / len(val_targets)
+            val_accuracies.append(acc)
+        total_val_accuracy = sum(val_accuracies) / len(val_accuracies)
+        total_val_loss = sum(val_losses) / len(val_losses)
+
+        return total_val_loss, total_val_accuracy
 
 
 def test_best_model(
@@ -101,78 +160,19 @@ def test_best_model(
         pred_prob_list = []
         label_prob_list = []
         model.eval()
-        onehot_encoder = OneHotEncoder(sparse=False)
-        # fit encoder to a list of all classes from 0 to num_classes - 1
-        # reshaped from [0, 1, 2, 3] to [[0], [1], [2], [3]]
-        onehot_encoder = onehot_encoder.fit(
-            np.array([x for x in range(num_classes)]).reshape(-1, 1)
-        )
         for imgs, labels in tqdm(loader, desc="Test"):
             imgs = imgs.to(device=device)
             labels = labels.to(device=device)
             scores = model(imgs)
-            label_list += [int(x) for x in labels]
-            prediction_list += [int(np.argmax(x.cpu())) for x in scores]
-            pred_prob_list += [tuple(x.cpu().numpy().astype(np.float64)) for x in scores]
-            # labels is a list of tensors, so they need to be placed onto the cpu, converted to numpy arrays, 
-            # reshaped with .reshape(-1, 1) to go from [1, 0] to [[1, 0]], transformed with onehot encoder, 
-            # and indexed with [0] to go from [[0, 1]] to [0, 1]. then converted to a tuple to be JSON serialized
-            label_prob_list += [tuple(onehot_encoder.transform(x.cpu().numpy().reshape(-1, 1))[0]) for x in labels]
+            label_list += [x.item() for x in labels]
+            prediction_list += [x.argmax().item() for x in scores]
+            pred_prob_list += [tuple(x.cpu().numpy()) for x in scores]
+            label_prob_list += [
+                tuple(torch.nn.functional.one_hot(x, num_classes=num_classes).cpu().numpy()) for x in labels
+                ]
 
         return label_list, prediction_list, label_prob_list, pred_prob_list
 
-
-def create_argparser():
-    parser = argparse.ArgumentParser()
-    # directory where all relevant folders are located
-    parser.add_argument("-project_directory", type=Path)
-    # number of epochs to train for
-    parser.add_argument("-num_epochs", type=int, default=64)
-    # number of classes to predict between
-    parser.add_argument("-num_classes", type=int, default=2)
-    # proportion to weight parameter update by
-    parser.add_argument("-learning_rate", type=float, default=1e-4)
-    # number of epochs trained past when the loss decreases to a minimum
-    parser.add_argument("-patience", type=int, default=5)
-    # number of inputs before gradient is calculated
-    parser.add_argument("-batch_size", type=int, default=16)
-    # filename of the model, including .pth.tar
-    parser.add_argument("-model_save_name", type=str, default="test_model.pth.tar")
-    # channels first
-    parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
-    # size of image patch, 8, 16 and 32 are good values
-    parser.add_argument("-patch_size", type=int, default=8)
-    # last dimension of output tensor after linear transformation
-    parser.add_argument("-dim", type=int, default=1024)
-    # number of transformer blocks
-    parser.add_argument("-depth", type=int, default=6)
-    # number of heads in multi-head attention layer
-    parser.add_argument("-heads", type=int, default=8)
-    # dimension of multilayer perceptron layer
-    parser.add_argument("-mlp_dim", type=int, default=2048)
-    parser.add_argument("-param_str", choices=["just_classifier", "all"], default="just_classifier") # decides which layers to train
-    return parser.parse_args()
-
-
-def validate_model(
-    model: ViT, 
-    val_loader: DataLoader, 
-    device: torch.device, 
-    criterion: torch.nn.CrossEntropyLoss, 
-    val_losses: List
-    ) -> List:
-    """
-    evaluates model performance on the validation set
-    """
-    with torch.no_grad():
-        model.eval()  # turn dropout and batch norm off
-        for val_data, val_targets in tqdm(val_loader, desc='Validation'):
-            val_data = val_data.to(device=device)
-            val_targets = val_targets.to(device=device)
-            val_scores = model(val_data)
-            val_loss = criterion(val_scores, val_targets)
-            val_losses.append(val_loss.item())
-        return val_losses
 
 
 def main():
@@ -224,7 +224,7 @@ def main():
         project_directory=args.project_directory
         )
     label_list, prediction_list, label_prob_list, pred_prob_list = test_best_model(
-        weight_path=args.project_directory.joinpath("models").joinpath(args.model_save_name),
+        weight_path=args.project_directory.joinpath("results").joinpath(args.model_save_name),
         num_classes=args.num_classes, 
         loader=test_dataloader, 
         model=model, 
