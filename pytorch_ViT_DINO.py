@@ -22,10 +22,10 @@ def train(
         num_epochs: int
         ) -> None:
     # if loss log file exists, remove to not include previous training runs
-    if os.path.exists(Path(project_directory).joinpath('results_and_models').joinpath(
-            f'{model_save_name[:-8]}_dino_loss_values.csv')):
-        os.remove(Path(project_directory).joinpath('results_and_models').joinpath(
-            f'{model_save_name[:-8]}_dino_loss_values.csv'))
+    res_file_path = Path(project_directory).joinpath('results_and_models').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')
+    
+    if os.path.exists(res_file_path):
+        os.remove(res_file_path)
     for epoch in range(num_epochs):
         losses = []
         for data in tqdm(train_loader):
@@ -35,21 +35,16 @@ def train(
             loss.backward() # calculate gradient
             optimizer.step()
             learner.update_moving_average()
-            with torch.no_grad():
-                losses.append(loss.item())
+            losses.append(loss.item())
+        
         with torch.no_grad():        
             total_loss = sum(losses) / len(losses)
 
             print('epoch', epoch, 'loss: ', total_loss)
 
-            if os.path.exists(Path(project_directory).joinpath('results_and_models').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')) == False:
-                with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="w", newline="") as data:
-                    csv_writer = csv.writer(data)
-                    csv_writer.writerow((epoch, total_loss))
-            else:
-                with open(Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv'), mode="a", newline="") as data:
-                    csv_writer = csv.writer(data)
-                    csv_writer.writerow((epoch, total_loss))
+            with open(res_file_path, mode="a", newline="") as data:
+                csv_writer = csv.writer(data)
+                csv_writer.writerow((epoch, total_loss))
     checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
     save_checkpoint(state=checkpoint, filepath=project_directory.joinpath("models").joinpath(model_save_name))
 
@@ -58,6 +53,8 @@ def create_argparser() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     # directory where all relevant folders are located
     parser.add_argument("-project_directory", type=Path)
+    # directory where the PCAM data are located 
+    parser.add_argument("-data_root", type=Path)
     # number of epochs to train for
     parser.add_argument("-num_epochs", type=int, default=18)
     # number of classes to predict between
@@ -134,7 +131,7 @@ def main():
     optimizer = define_optimizer(learner=learner, learning_rate=args.learning_rate)
     learner.to(device)
     print_model_summary(model=learner)
-    train_dataset = create_dino_datasets(dataset_root="C:\\Users\\danan\\protean\\PCAM\\")
+    train_dataset = create_dino_datasets(dataset_root=args.data_root)
     train_dataloader = create_dino_dataloaders(
         train_dataset=train_dataset,
         batch_size=args.batch_size
