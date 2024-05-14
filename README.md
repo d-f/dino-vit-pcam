@@ -47,3 +47,14 @@ Rscript C:\ml_code\dino_vit_pcam\utils\calc_model_performance.R
 C:\ml_projects\dino_vit\results\dino_vit_model_1_test_results.json
 C:\ml_projects\dino_vit\results\dino_vit_model_1_performance.json
 ```
+
+For demonstration / debugging purposes a model was trained with DINO with a batch size of 120 and a learning rate of 3e-4 for 17 epochs, resulting in a loss value of 5.34.
+
+A MLP classifier was added to this model and fine tuned for 4 epochs with a batch size of 16 and a learning rate of 1e-3, resulting in the following performance on the PCAM test dataset:
+
+| Accuracy | Sensitivity | Specificity |
+| -------- | ----------- | ----------- |
+| 73.21%   | 75.80%      | 70.63%      |
+
+The loss values throughout training indicate this model would benefit from more training during both phases of training, but these two short training phases were just used as a sanity check.
+
