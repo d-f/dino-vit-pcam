@@ -33,7 +33,7 @@ bash C:\ml_code\dino-vit-pcam\create_dirs.sh
   - Train DINO (using hyperparameters included in [paper](https://arxiv.org/abs/2104.14294))
       - See create_argparser() on line 57 in pytorch_ViT_DINO.py for more details on adjustable hyperparameters
 ```
-python pytorch_ViT_DINO.py -project_directory C:\ml_projects\dino-vit\ -model_save_name "dino_vit_model_1.pth.tar"
+python pytorch_ViT_DINO.py -project_directory C:\ml_projects\dino-vit\ -model_save_name "dino_vit_model_1.pth.tar" -data_root C:\ml_projects\PCAM\
 ```
   - Fine-tune classifier
       - See create_argparser() on line 133 in pytorch_ViT_finetune.py for more details on adjustable hyperparameters
