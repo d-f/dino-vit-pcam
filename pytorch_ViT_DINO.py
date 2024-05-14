@@ -28,7 +28,7 @@ def train(
             f'{model_save_name[:-8]}_dino_loss_values.csv'))
     for epoch in range(num_epochs):
         losses = []
-        for _, data in enumerate(tqdm(train_loader)):
+        for data in tqdm(train_loader):
             data    = data[0].to(device=device) # [0]: tensors [1]: labels
             loss  = learner(data)
             optimizer.zero_grad() # clear gradient information
@@ -59,7 +59,7 @@ def create_argparser() -> argparse.Namespace:
     # directory where all relevant folders are located
     parser.add_argument("-project_directory", type=Path)
     # number of epochs to train for
-    parser.add_argument("-num_epochs", type=int, default=300)
+    parser.add_argument("-num_epochs", type=int, default=18)
     # number of classes to predict between
     parser.add_argument("-num_classes", type=int, default=2)
     # proportion to weight parameter update by
