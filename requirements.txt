@@ -1,5 +1,5 @@
 numpy==1.25.0
-scikit_learn==1.2.2
+scikit_learn==1.5.0
 scikit-image
 torch==2.0.1
 torchvision==0.15.2
