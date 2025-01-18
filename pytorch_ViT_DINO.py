@@ -27,24 +27,30 @@ def train(
     if os.path.exists(res_file_path):
         os.remove(res_file_path)
     for epoch in range(num_epochs):
-        losses = []
-        for data in tqdm(train_loader):
-            data    = data[0].to(device=device) # [0]: tensors [1]: labels
-            loss  = learner(data)
-            optimizer.zero_grad() # clear gradient information
-            loss.backward() # calculate gradient
+
+        running_loss = 0.0
+        num_batches = len(train_loader)
+        
+        learner.train() 
+        
+        for batch_idx, data in enumerate(tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}')):
+            data = data[0].to(device=device)  # [0]: tensors [1]: labels
+            
+            loss = learner(data)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
             optimizer.step()
             learner.update_moving_average()
-            losses.append(loss.item())
-        
-        with torch.no_grad():        
-            total_loss = sum(losses) / len(losses)
-
-            print('epoch', epoch, 'loss: ', total_loss)
-
+            
+            running_loss += loss.detach()
+                    
+        with torch.no_grad():
+            epoch_loss = (running_loss / num_batches).item()
+            print(f'Epoch {epoch+1}, Loss: {epoch_loss}')
+            
             with open(res_file_path, mode="a", newline="") as data:
                 csv_writer = csv.writer(data)
-                csv_writer.writerow((epoch, total_loss))
+                csv_writer.writerow((epoch, epoch_loss))
     checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
     save_checkpoint(state=checkpoint, filepath=project_directory.joinpath("models").joinpath(model_save_name))
 
@@ -56,7 +62,7 @@ def create_argparser() -> argparse.Namespace:
     # directory where the PCAM data are located 
     parser.add_argument("-data_root", type=Path)
     # number of epochs to train for
-    parser.add_argument("-num_epochs", type=int, default=18)
+    parser.add_argument("-num_epochs", type=int, default=32)
     # number of classes to predict between
     parser.add_argument("-num_classes", type=int, default=2)
     # proportion to weight parameter update by
@@ -66,7 +72,7 @@ def create_argparser() -> argparse.Namespace:
     # number of inputs before gradient is calculated
     parser.add_argument("-batch_size", type=int, default=120) 
     # filename of the model, including .pth.tar
-    parser.add_argument("-model_save_name", type=str)
+    parser.add_argument("-model_save_name", type=str, default="model_2.pth.tar")
     # channels first
     parser.add_argument("-img_shape", default=(3, 96, 96), type=tuple, nargs="+")
     # size of image patch, 8, 16 and 32 are good values
