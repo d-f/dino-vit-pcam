@@ -22,7 +22,7 @@ def train(
         num_epochs: int
         ) -> None:
     # if loss log file exists, remove to not include previous training runs
-    res_file_path = Path(project_directory).joinpath('results_and_models').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')
+    res_file_path = Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')
     
     if os.path.exists(res_file_path):
         os.remove(res_file_path)
@@ -33,7 +33,7 @@ def train(
         
         learner.train() 
         
-        for batch_idx, data in enumerate(tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}')):
+        for data in tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}'):
             data = data[0].to(device=device)  # [0]: tensors [1]: labels
             
             loss = learner(data)
@@ -47,7 +47,6 @@ def train(
         with torch.no_grad():
             epoch_loss = (running_loss / num_batches).item()
             print(f'Epoch {epoch+1}, Loss: {epoch_loss}')
-            
             with open(res_file_path, mode="a", newline="") as data:
                 csv_writer = csv.writer(data)
                 csv_writer.writerow((epoch, epoch_loss))
