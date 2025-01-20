@@ -19,40 +19,48 @@ def train(
         device: torch.device, 
         project_directory: Path, 
         model_save_name: str, 
-        num_epochs: int
+        num_epochs: int,
+        patience: int,
         ) -> None:
     # if loss log file exists, remove to not include previous training runs
     res_file_path = Path(project_directory).joinpath('results').joinpath(f'{model_save_name[:-8]}_dino_loss_values.csv')
-    
+    best_loss = np.inf
+    patience_counter = 0
+
     if os.path.exists(res_file_path):
         os.remove(res_file_path)
     for epoch in range(num_epochs):
-
-        running_loss = 0.0
-        num_batches = len(train_loader)
-        
-        learner.train() 
-        
-        for data in tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}'):
-            data = data[0].to(device=device)  # [0]: tensors [1]: labels
+        if patience_counter < patience:
+            running_loss = 0.0
+            num_batches = len(train_loader)
             
-            loss = learner(data)
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            optimizer.step()
-            learner.update_moving_average()
+            learner.train() 
             
-            running_loss += loss.detach()
-                    
-        with torch.no_grad():
-            epoch_loss = (running_loss / num_batches).item()
-            print(f'Epoch {epoch+1}, Loss: {epoch_loss}')
-            with open(res_file_path, mode="a", newline="") as data:
-                csv_writer = csv.writer(data)
-                csv_writer.writerow((epoch, epoch_loss))
-    checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
-    save_checkpoint(state=checkpoint, filepath=project_directory.joinpath("models").joinpath(model_save_name))
-
+            for data in tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}'):
+                data = data[0].to(device=device)  # [0]: tensors [1]: labels
+                
+                loss = learner(data)
+                optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                optimizer.step()
+                learner.update_moving_average()
+                
+                running_loss += loss.detach()
+                        
+            with torch.no_grad():
+                epoch_loss = (running_loss / num_batches).item()
+                print(f'Epoch {epoch+1}, Loss: {epoch_loss}')
+                with open(res_file_path, mode="a", newline="") as data:
+                    csv_writer = csv.writer(data)
+                    csv_writer.writerow((epoch, epoch_loss))
+            if loss < best_loss:
+                checkpoint = {'state_dict': learner.state_dict(), 'optimizer': optimizer.state_dict()}
+                save_checkpoint(state=checkpoint, filepath=project_directory.joinpath("models").joinpath(model_save_name))
+                patience_counter = 0
+            else:
+                patience_counter += 1
+        else:
+            break  
 
 def create_argparser() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -148,7 +156,8 @@ def main():
         device=device, 
         project_directory=args.project_directory,
         model_save_name=args.model_save_name,
-        num_epochs=args.num_epochs
+        num_epochs=args.num_epochs,
+        patience=args.patience
         )
     save_dino_results(
         optimizer=optimizer,
